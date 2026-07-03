@@ -26,11 +26,15 @@ class VoskEngine @Inject constructor() : STTEngine {
     private var recognizer: Recognizer? = null
     private var isListening = false
 
-    suspend fun initializeModel(modelPath: String) {
+    suspend fun initializeModel(modelPath: String, grammarJson: String? = null) {
         withContext(Dispatchers.IO) {
             try {
                 val model = Model(modelPath)
-                recognizer = Recognizer(model, 16000.0f)
+                if (grammarJson != null) {
+                    recognizer = Recognizer(model, 16000.0f, grammarJson)
+                } else {
+                    recognizer = Recognizer(model, 16000.0f)
+                }
             } catch (e: Exception) {
                 _errorFlow.emit(e)
             }

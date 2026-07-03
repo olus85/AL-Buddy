@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.example.albuddy.data.local.AppDatabase
 import com.example.albuddy.data.local.CommandDao
+import com.example.albuddy.data.local.VoskWordDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -22,11 +23,16 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "albuddy.db"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 
     @Provides
     fun provideCommandDao(appDatabase: AppDatabase): CommandDao {
         return appDatabase.commandDao()
+    }
+
+    @Provides
+    fun provideVoskWordDao(appDatabase: AppDatabase): VoskWordDao {
+        return appDatabase.voskWordDao()
     }
 }

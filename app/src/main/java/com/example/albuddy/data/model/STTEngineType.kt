@@ -1,5 +1,6 @@
 package com.example.albuddy.data.model
 
 enum class STTEngineType {
-    VOSK
+    VOSK,
+    NATIVE_OFFLINE
 }

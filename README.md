@@ -4,9 +4,10 @@
 
 ## Features
 
-- **Offline Speech-to-Text (STT)**: Uses the **Vosk** engine for fast, accurate, and completely offline voice recognition.
+- **Offline Speech-to-Text (STT)**: Uses the **Native Android Engine** or the **Vosk** engine for fast, accurate, and completely offline voice recognition.
 - **Home Assistant Integration**: Connects locally to your Home Assistant instance via the REST API.
 - **Custom Voice Commands**: Create custom trigger phrases mapped to specific Home Assistant entities and services. Multiple trigger phrases per command are supported (separated by commas).
+- **Vosk Dictionary**: A built-in dictionary manager allows you to dynamically manage words and grammar phrases for the Vosk engine.
 - **Background Listening**: Can run as a foreground service, listening for commands even when the app is in the background or the screen is off (requires microphone permissions and disabled battery optimization).
 - **Haptic & Audio Feedback**: Receive a satisfying click sound and vibration immediately upon a successful voice command match.
 - **Backup & Restore**: Easily export and import your settings, HA URL, Long-Lived Access Token, and created commands to a JSON file.
@@ -24,8 +25,9 @@
 3. Open the **Settings** within the app:
    - Enter your Home Assistant Local IP/URL (e.g., `http://192.168.1.x:8123`).
    - Enter your Long-Lived Access Token.
-   - Click **Save & Test Connection**.
-   - Click **Download STT Model (Vosk)** to download the offline German speech recognition model.
+   - The app will automatically test your connection and save your settings.
+   - Select your preferred STT Engine (Native Android is the default).
+   - If using Vosk, the app will automatically download the required language model.
 4. **Create Commands**: Go to the Command Creator, select an entity and service, and type the trigger phrase(s) you want to use.
 5. Go to the **Dashboard** and press **Start Listening**.
 

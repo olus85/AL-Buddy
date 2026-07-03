@@ -2,6 +2,7 @@ package com.example.albuddy
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -57,6 +58,10 @@ fun ALBuddyApp() {
     var currentScreen by remember { mutableStateOf("dashboard") }
     val viewModel: MainViewModel = hiltViewModel()
 
+    BackHandler(enabled = currentScreen != "dashboard") {
+        currentScreen = if (currentScreen == "vosk_dictionary") "settings" else "dashboard"
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(title = { Text("AL Buddy") })
@@ -91,7 +96,8 @@ fun ALBuddyApp() {
             when (currentScreen) {
                 "dashboard" -> DashboardScreen(viewModel = viewModel, modifier = it, onNavigateToEdit = { currentScreen = "add_command" })
                 "add_command" -> CommandCreatorScreen(viewModel = viewModel, modifier = it, onBack = { currentScreen = "dashboard" })
-                "settings" -> SettingsScreen(viewModel = viewModel, modifier = it)
+                "settings" -> SettingsScreen(viewModel = viewModel, onNavigateToDictionary = { currentScreen = "vosk_dictionary" }, modifier = it)
+                "vosk_dictionary" -> com.example.albuddy.ui.screens.VoskDictionaryScreen(viewModel = viewModel, modifier = it)
             }
         }
     }

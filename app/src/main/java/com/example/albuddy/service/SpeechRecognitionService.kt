@@ -24,7 +24,9 @@ import com.example.albuddy.data.repository.SpeechStateRepository
 import com.example.albuddy.network.HomeAssistantApi
 import com.example.albuddy.stt.AudioRecorder
 import com.example.albuddy.stt.STTEngine
+import com.example.albuddy.stt.android.NativeSpeechEngine
 import com.example.albuddy.stt.vosk.VoskEngine
+import com.example.albuddy.data.repository.VoskDictionaryRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -47,6 +49,8 @@ class SpeechRecognitionService : Service() {
     @Inject lateinit var commandDao: CommandDao
     @Inject lateinit var homeAssistantApi: HomeAssistantApi
     @Inject lateinit var voskEngine: VoskEngine
+    @Inject lateinit var nativeSpeechEngine: NativeSpeechEngine
+    @Inject lateinit var voskDictionaryRepository: VoskDictionaryRepository
 
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
@@ -80,6 +84,7 @@ class SpeechRecognitionService : Service() {
             ACTION_STOP_SERVICE -> {
                 speechStateRepository.clear()
                 stopListeningPipeline()
+                grammarWatcherJob?.cancel()
                 releaseWakeLock()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -110,20 +115,42 @@ class SpeechRecognitionService : Service() {
         wakeLock = null
     }
 
+    private var grammarWatcherJob: Job? = null
+
     private fun startListeningPipeline() {
+        grammarWatcherJob?.cancel()
+        grammarWatcherJob = serviceScope.launch {
+            val engineType = settingsRepository.activeSttEngine.firstOrNull() ?: STTEngineType.VOSK
+            
+            if (engineType == STTEngineType.VOSK) {
+                voskDictionaryRepository.getGrammarJson().collect { grammarJson ->
+                    Log.d(TAG, "Vosk grammar updated, restarting engine...")
+                    launchEngine(engineType, grammarJson)
+                }
+            } else {
+                launchEngine(engineType, null)
+            }
+        }
+    }
+
+    private fun launchEngine(engineType: STTEngineType, grammarJson: String?) {
         engineJob?.cancel()
         engineJob = serviceScope.launch(CoroutineExceptionHandler { _, throwable ->
             Log.e(TAG, "Pipeline error: ${throwable.message}", throwable)
             restartPipeline()
         }) {
-            val voskDir = File(filesDir, "vosk-model")
-            var modelPath = voskDir.absolutePath
-            val children = voskDir.listFiles()
-            if (children != null && children.size == 1 && children[0].isDirectory) {
-                modelPath = children[0].absolutePath
+            if (engineType == STTEngineType.VOSK) {
+                val voskDir = File(filesDir, "vosk-model")
+                var modelPath = voskDir.absolutePath
+                val children = voskDir.listFiles()
+                if (children != null && children.size == 1 && children[0].isDirectory) {
+                    modelPath = children[0].absolutePath
+                }
+                voskEngine.initializeModel(modelPath, grammarJson)
+                activeEngine = voskEngine
+            } else {
+                activeEngine = nativeSpeechEngine
             }
-            voskEngine.initializeModel(modelPath)
-            activeEngine = voskEngine
 
             // Launch command matcher
             launch {
@@ -143,8 +170,14 @@ class SpeechRecognitionService : Service() {
             }
 
             // Start audio recording and feed to engine
-            val audioFlow = audioRecorder.startRecording()
-            activeEngine?.startListening(audioFlow)
+            if (engineType == STTEngineType.VOSK) {
+                val audioFlow = audioRecorder.startRecording()
+                activeEngine?.startListening(audioFlow)
+            } else {
+                // Native engine doesn't need our audioRecorder flow, it uses the mic directly
+                // but our interface requires a flow. We pass an empty/dummy flow.
+                activeEngine?.startListening(kotlinx.coroutines.flow.emptyFlow())
+            }
         }
     }
 
@@ -301,6 +334,7 @@ class SpeechRecognitionService : Service() {
         super.onDestroy()
         speechStateRepository.clear()
         stopListeningPipeline()
+        grammarWatcherJob?.cancel()
         releaseWakeLock()
         serviceScope.cancel()
     }

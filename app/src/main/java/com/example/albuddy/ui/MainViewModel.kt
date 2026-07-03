@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.firstOrNull
+import com.example.albuddy.data.repository.VoskDictionaryRepository
+import com.example.albuddy.data.model.VoskWord
 import com.google.gson.Gson
 import com.example.albuddy.data.model.BackupData
 import android.net.Uri
@@ -35,7 +37,8 @@ class MainViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val homeAssistantApi: HomeAssistantApi,
     private val modelDownloader: ModelDownloader,
-    private val speechStateRepository: SpeechStateRepository
+    private val speechStateRepository: SpeechStateRepository,
+    private val voskDictionaryRepository: VoskDictionaryRepository
 ) : ViewModel() {
 
     val commands: StateFlow<List<Command>> = commandDao.getAllCommands()
@@ -43,7 +46,7 @@ class MainViewModel @Inject constructor(
 
     val haUrl = settingsRepository.haUrl.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
     val haToken = settingsRepository.haToken.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
-    val activeEngine = MutableStateFlow(STTEngineType.VOSK).asStateFlow()
+    val activeEngine = settingsRepository.activeSttEngine.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), STTEngineType.VOSK)
     val playMatchSound = settingsRepository.playMatchSound.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
     val vibrateOnMatch = settingsRepository.vibrateOnMatch.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
@@ -65,12 +68,47 @@ class MainViewModel @Inject constructor(
     val liveTranscription: StateFlow<String> = speechStateRepository.liveTranscription
     val lastMatchedCommand: StateFlow<String?> = speechStateRepository.lastMatchedCommand
 
+    private val _connectionStatus = MutableStateFlow<Boolean?>(null)
+    val connectionStatus: StateFlow<Boolean?> = _connectionStatus.asStateFlow()
+
     fun clearServiceError() {
         _serviceError.value = null
     }
 
     init {
         checkModelExists()
+    }
+    
+    data class DictionaryDisplayItem(val word: String, val isCommand: Boolean, val voskWord: VoskWord? = null)
+
+    val dictionaryDisplayItems: StateFlow<List<DictionaryDisplayItem>> = kotlinx.coroutines.flow.combine(
+        commands,
+        voskDictionaryRepository.getAllCustomWords()
+    ) { cmds, customWords ->
+        val items = mutableListOf<DictionaryDisplayItem>()
+        cmds.forEach { items.add(DictionaryDisplayItem(it.triggerPhrase, true)) }
+        customWords.forEach { items.add(DictionaryDisplayItem(it.word, false, it)) }
+        items.sortedBy { it.word.lowercase() }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun addVoskWord(input: String) {
+        viewModelScope.launch {
+            input.split(",").map { it.trim() }.filter { it.isNotBlank() }.forEach { word ->
+                voskDictionaryRepository.addWord(word)
+            }
+        }
+    }
+
+    fun removeVoskWord(voskWord: VoskWord) {
+        viewModelScope.launch {
+            voskDictionaryRepository.removeWord(voskWord)
+        }
+    }
+    
+    fun setActiveEngine(engine: STTEngineType) {
+        viewModelScope.launch {
+            settingsRepository.setActiveSttEngine(engine)
+        }
     }
 
     fun fetchEntities() {
@@ -105,22 +143,30 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun saveSettings(url: String, token: String, playSound: Boolean = true, vibrate: Boolean = true) {
-        viewModelScope.launch {
-            settingsRepository.setHaUrl(url)
-            settingsRepository.setHaToken(token)
-            settingsRepository.setPlayMatchSound(playSound)
-            settingsRepository.setVibrateOnMatch(vibrate)
-        }
+    fun updateHaUrl(url: String) {
+        viewModelScope.launch { settingsRepository.setHaUrl(url) }
     }
 
-    fun testConnection(onResult: (Boolean) -> Unit) {
+    fun updateHaToken(token: String) {
+        viewModelScope.launch { settingsRepository.setHaToken(token) }
+    }
+
+    fun updatePlaySound(play: Boolean) {
+        viewModelScope.launch { settingsRepository.setPlayMatchSound(play) }
+    }
+
+    fun updateVibrate(vibrate: Boolean) {
+        viewModelScope.launch { settingsRepository.setVibrateOnMatch(vibrate) }
+    }
+
+    fun testConnection() {
+        _connectionStatus.value = null // reset while testing
         viewModelScope.launch {
             try {
                 homeAssistantApi.getStates()
-                onResult(true)
+                _connectionStatus.value = true
             } catch (e: Exception) {
-                onResult(false)
+                _connectionStatus.value = false
             }
         }
     }

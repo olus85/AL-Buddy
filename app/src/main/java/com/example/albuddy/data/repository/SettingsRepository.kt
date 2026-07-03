@@ -31,7 +31,7 @@ class SettingsRepository @Inject constructor(
     val haUrl: Flow<String?> = context.dataStore.data.map { it[HA_URL] }
     val haToken: Flow<String?> = context.dataStore.data.map { it[HA_TOKEN] }
     val activeSttEngine: Flow<STTEngineType> = context.dataStore.data.map {
-        val name = it[ACTIVE_STT_ENGINE] ?: STTEngineType.VOSK.name
+        val name = it[ACTIVE_STT_ENGINE] ?: STTEngineType.NATIVE_OFFLINE.name
         STTEngineType.valueOf(name)
     }
     val voskModelDownloaded: Flow<Boolean> = context.dataStore.data.map { it[VOSK_MODEL_DOWNLOADED] ?: false }
