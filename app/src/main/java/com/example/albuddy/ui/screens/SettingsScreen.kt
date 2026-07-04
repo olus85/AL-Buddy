@@ -32,6 +32,11 @@ fun SettingsScreen(viewModel: MainViewModel, onNavigateToDictionary: () -> Unit,
     val connectionStatus by viewModel.connectionStatus.collectAsState()
     val activeEngine by viewModel.activeEngine.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
+    val nativeSttLanguage by viewModel.nativeSttLanguage.collectAsState()
+    val nativeSttWebSearch by viewModel.nativeSttWebSearch.collectAsState()
+    val nativeSttSilenceLength by viewModel.nativeSttSilenceLength.collectAsState()
+    val nativeSttPartialResults by viewModel.nativeSttPartialResults.collectAsState()
+    val nativeSttMaxResults by viewModel.nativeSttMaxResults.collectAsState()
 
     var urlInput by remember(haUrl) { mutableStateOf(haUrl ?: "") }
     var tokenInput by remember(haToken) { mutableStateOf(haToken ?: "") }
@@ -191,6 +196,106 @@ fun SettingsScreen(viewModel: MainViewModel, onNavigateToDictionary: () -> Unit,
                         Icon(Icons.Default.Edit, contentDescription = "Edit Dictionary")
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Vosk Dictionary verwalten")
+                    }
+                } else if (activeEngine == STTEngineType.NATIVE_OFFLINE) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    var showNativeSettingsDialog by remember { mutableStateOf(false) }
+                    
+                    Button(onClick = { showNativeSettingsDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Settings, contentDescription = "Native Settings")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Erweiterte STT Einstellungen")
+                    }
+
+                    if (showNativeSettingsDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showNativeSettingsDialog = false },
+                            title = { Text("Native STT Feineinstellungen") },
+                            text = {
+                                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                                    var langExpanded by remember { mutableStateOf(false) }
+                                    val languages = listOf("" to "System (Standard)", "de-DE" to "Deutsch", "en-US" to "Englisch")
+                                    val currentLangName = languages.find { it.first == nativeSttLanguage }?.second ?: nativeSttLanguage
+                                    
+                                    Box {
+                                        OutlinedTextField(
+                                            value = currentLangName,
+                                            onValueChange = {},
+                                            readOnly = true,
+                                            label = { Text("Erkennungssprache") },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            trailingIcon = {
+                                                Icon(Icons.Default.ArrowDropDown, "Select")
+                                            }
+                                        )
+                                        androidx.compose.material3.Surface(
+                                            modifier = Modifier.matchParentSize().clickable { langExpanded = true }, 
+                                            color = androidx.compose.ui.graphics.Color.Transparent
+                                        ) {}
+                                        
+                                        DropdownMenu(expanded = langExpanded, onDismissRequest = { langExpanded = false }) {
+                                            languages.forEach { (code, name) ->
+                                                DropdownMenuItem(
+                                                    text = { Text(name) },
+                                                    onClick = { 
+                                                        viewModel.updateNativeSttLanguage(code)
+                                                        langExpanded = false 
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                                        Switch(checked = nativeSttWebSearch, onCheckedChange = { viewModel.updateNativeSttWebSearch(it) })
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Web-Search Modell verwenden (statt Diktat)")
+                                    }
+                                    
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                                        Switch(checked = nativeSttPartialResults, onCheckedChange = { viewModel.updateNativeSttPartialResults(it) })
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Zwischenergebnisse aktivieren")
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text("Ruhe-Länge nach dem Sprechen: ${nativeSttSilenceLength}ms", style = MaterialTheme.typography.bodySmall)
+                                    Slider(
+                                        value = nativeSttSilenceLength.toFloat(),
+                                        onValueChange = { viewModel.updateNativeSttSilenceLength(it.toLong()) },
+                                        valueRange = 300f..3000f,
+                                        steps = 26
+                                    )
+                                    
+                                    var maxResultsText by remember(nativeSttMaxResults) { mutableStateOf(nativeSttMaxResults.toString()) }
+                                    OutlinedTextField(
+                                        value = maxResultsText,
+                                        onValueChange = { 
+                                            maxResultsText = it
+                                            it.toIntOrNull()?.let { num ->
+                                                if (num in 1..5) viewModel.updateNativeSttMaxResults(num)
+                                            }
+                                        },
+                                        label = { Text("Maximale Ergebnisse (1-5)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                    )
+                                    
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = "Hinweis: Änderungen erfordern einen Neustart des Service (Stoppen & Starten). Einige Parameter (wie die Ruhe-Länge) werden von der Google-App oft ignoriert.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showNativeSettingsDialog = false }) {
+                                    Text("Schließen")
+                                }
+                            }
+                        )
                     }
                 }
             }

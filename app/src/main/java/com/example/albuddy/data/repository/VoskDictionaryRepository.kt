@@ -23,7 +23,12 @@ class VoskDictionaryRepository @Inject constructor(
             
             // Add words from commands
             commands.forEach { command ->
-                wordsSet.add(command.triggerPhrase.lowercase())
+                command.triggerPhrase.split(",").forEach { phrase ->
+                    val trimmed = phrase.trim().lowercase()
+                    if (trimmed.isNotEmpty()) {
+                        wordsSet.add(trimmed)
+                    }
+                }
             }
             
             // Add custom vosk words

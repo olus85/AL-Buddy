@@ -40,22 +40,55 @@ class ModelDownloader @Inject constructor(
         val isZip = url.endsWith(".zip")
 
         if (isZip) {
-            ZipInputStream(body.byteStream()).use { zis ->
-                var zipEntry = zis.nextEntry
-                while (zipEntry != null) {
-                    val newFile = File(targetDir, zipEntry.name)
-                    if (zipEntry.isDirectory) {
-                        newFile.mkdirs()
-                    } else {
-                        newFile.parentFile?.mkdirs()
-                        FileOutputStream(newFile).use { fos ->
-                            zis.copyTo(fos)
+            val tempZipFile = File(targetDir, "temp_model_download.zip")
+            body.byteStream().use { inputStream ->
+                FileOutputStream(tempZipFile).use { outputStream ->
+                    val buffer = ByteArray(8 * 1024)
+                    var bytesCopied: Long = 0
+                    var bytesRead: Int
+                    var lastProgress = -1
+
+                    while (inputStream.read(buffer).also { bytesRead = it } >= 0) {
+                        outputStream.write(buffer, 0, bytesRead)
+                        bytesCopied += bytesRead
+
+                        val progress = if (contentLength > 0) {
+                            ((bytesCopied.toFloat() / contentLength.toFloat()) * 100).toInt()
+                        } else {
+                            -1
+                        }
+
+                        if (progress != lastProgress) {
+                            emit(progress)
+                            lastProgress = progress
                         }
                     }
-                    zis.closeEntry()
-                    zipEntry = zis.nextEntry
                 }
             }
+            
+            java.io.FileInputStream(tempZipFile).use { fis ->
+                ZipInputStream(fis).use { zis ->
+                    var zipEntry = zis.nextEntry
+                    while (zipEntry != null) {
+                        val newFile = File(targetDir, zipEntry.name)
+                        if (!newFile.canonicalPath.startsWith(targetDir.canonicalPath)) {
+                            throw SecurityException("Zip slip vulnerability: \${zipEntry.name}")
+                        }
+                        
+                        if (zipEntry.isDirectory) {
+                            newFile.mkdirs()
+                        } else {
+                            newFile.parentFile?.mkdirs()
+                            FileOutputStream(newFile).use { fos ->
+                                zis.copyTo(fos)
+                            }
+                        }
+                        zis.closeEntry()
+                        zipEntry = zis.nextEntry
+                    }
+                }
+            }
+            tempZipFile.delete()
             emit(100)
         } else {
             val file = File(targetDir, url.substringAfterLast("/"))

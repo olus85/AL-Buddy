@@ -18,12 +18,15 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.firstOrNull
+import com.example.albuddy.data.repository.SettingsRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class NativeSpeechEngine @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val settingsRepository: SettingsRepository
 ) : STTEngine {
 
     private val _transcriptionFlow = MutableSharedFlow<String>(extraBufferCapacity = 10)
@@ -42,6 +45,24 @@ class NativeSpeechEngine @Inject constructor(
     }
 
     override suspend fun startListening(audioFlow: Flow<ShortArray>) {
+        val language = settingsRepository.nativeSttLanguage.firstOrNull() ?: ""
+        val webSearch = settingsRepository.nativeSttWebSearch.firstOrNull() ?: false
+        val silenceLength = settingsRepository.nativeSttSilenceLength.firstOrNull() ?: 1500L
+        val partialResults = settingsRepository.nativeSttPartialResults.firstOrNull() ?: false
+        val maxResults = settingsRepository.nativeSttMaxResults.firstOrNull() ?: 1
+
+        intent.apply {
+            if (language.isNotBlank()) {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
+            } else {
+                removeExtra(RecognizerIntent.EXTRA_LANGUAGE)
+            }
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, if (webSearch) RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH else RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, silenceLength)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, partialResults)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, maxResults)
+        }
+
         withContext(Dispatchers.Main) {
             isListening = true
             startRecognizer()
@@ -65,8 +86,6 @@ class NativeSpeechEngine @Inject constructor(
                     
                     scope.launch {
                         _errorFlow.emit(RuntimeException("Native SpeechRecognizer error: \$error"))
-                        delay(500)
-                        startRecognizer()
                     }
                 }
 
@@ -97,8 +116,6 @@ class NativeSpeechEngine @Inject constructor(
         } catch (e: Exception) {
             scope.launch {
                 _errorFlow.emit(e)
-                delay(500)
-                startRecognizer()
             }
         }
     }

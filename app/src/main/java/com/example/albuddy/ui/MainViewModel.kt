@@ -49,6 +49,12 @@ class MainViewModel @Inject constructor(
     val activeEngine = settingsRepository.activeSttEngine.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), STTEngineType.VOSK)
     val playMatchSound = settingsRepository.playMatchSound.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
     val vibrateOnMatch = settingsRepository.vibrateOnMatch.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    
+    val nativeSttLanguage = settingsRepository.nativeSttLanguage.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+    val nativeSttWebSearch = settingsRepository.nativeSttWebSearch.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val nativeSttSilenceLength = settingsRepository.nativeSttSilenceLength.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1500L)
+    val nativeSttPartialResults = settingsRepository.nativeSttPartialResults.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    val nativeSttMaxResults = settingsRepository.nativeSttMaxResults.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1)
 
     private val _entities = MutableStateFlow<List<HAEntity>>(emptyList())
     val entities: StateFlow<List<HAEntity>> = _entities.asStateFlow()
@@ -157,6 +163,26 @@ class MainViewModel @Inject constructor(
 
     fun updateVibrate(vibrate: Boolean) {
         viewModelScope.launch { settingsRepository.setVibrateOnMatch(vibrate) }
+    }
+
+    fun updateNativeSttLanguage(language: String) {
+        viewModelScope.launch { settingsRepository.setNativeSttLanguage(language) }
+    }
+
+    fun updateNativeSttWebSearch(webSearch: Boolean) {
+        viewModelScope.launch { settingsRepository.setNativeSttWebSearch(webSearch) }
+    }
+
+    fun updateNativeSttSilenceLength(length: Long) {
+        viewModelScope.launch { settingsRepository.setNativeSttSilenceLength(length) }
+    }
+
+    fun updateNativeSttPartialResults(partial: Boolean) {
+        viewModelScope.launch { settingsRepository.setNativeSttPartialResults(partial) }
+    }
+
+    fun updateNativeSttMaxResults(max: Int) {
+        viewModelScope.launch { settingsRepository.setNativeSttMaxResults(max) }
     }
 
     fun testConnection() {
